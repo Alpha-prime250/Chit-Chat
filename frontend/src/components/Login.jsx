@@ -1,18 +1,37 @@
 import { useState } from "react";
 
-// Used when the user leaves the name field blank — username is optional.
-function generateGuestName() {
-  const suffix = Math.floor(1000 + Math.random() * 9000);
-  return `Guest${suffix}`;
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-export default function Login({ onJoin }) {
+export default function Login({ onJoin, serverError }) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    onJoin(trimmed || generateGuestName());
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    let hasError = false;
+
+    if (!trimmedName) {
+      setNameError("Name is required");
+      hasError = true;
+    }
+    if (!trimmedEmail) {
+      setEmailError("Email is required");
+      hasError = true;
+    } else if (!isValidEmail(trimmedEmail)) {
+      setEmailError("That doesn't look like a valid email");
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    onJoin({ username: trimmedName, email: trimmedEmail });
   };
 
   return (
@@ -22,25 +41,46 @@ export default function Login({ onJoin }) {
           <span className="pulse-dot" />
         </div>
         <h1 className="login-title">Chit Chat</h1>
-        <p className="login-subtitle">Pick a name, or jump in as a guest.</p>
+        <p className="login-subtitle">Enter your name and email to join the chat.</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
+          {serverError && <p className="login-error">{serverError}</p>}
           <label htmlFor="username" className="login-label">
-            Your name (optional)
+            Your name
           </label>
           <input
             id="username"
             className="login-input"
             type="text"
-            placeholder="e.g. Yash — leave blank to join as a guest"
+            placeholder="e.g. Yash"
             value={name}
             maxLength={24}
             autoFocus
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (nameError) setNameError("");
+            }}
           />
+          {nameError && <p className="login-error">{nameError}</p>}
+
+          <label htmlFor="email" className="login-label" style={{ marginTop: 12 }}>
+            Email
+          </label>
+          <input
+            id="email"
+            className="login-input"
+            type="email"
+            placeholder="e.g. Yash@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailError) setEmailError("");
+            }}
+          />
+          {emailError && <p className="login-error">{emailError}</p>}
 
           <button type="submit" className="login-button">
-            {name.trim() ? "Join chat" : "Join as guest"}
+            Join chat
           </button>
         </form>
       </div>

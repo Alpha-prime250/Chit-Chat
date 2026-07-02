@@ -4,6 +4,7 @@ import MessageInput from "./MessageInput.jsx";
 
 export default function ChatWindow({
   username,
+  email,
   activeChat, // "public" or a partner's username
   messages,
   onlineUsers,
@@ -47,6 +48,7 @@ export default function ChatWindow({
         </div>
         <div className="chat-header-user">
           <span className="chat-header-username">{username}</span>
+          {email && <span className="chat-header-email">{email}</span>}
         </div>
       </header>
 

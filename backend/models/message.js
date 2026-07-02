@@ -1,28 +1,20 @@
 const mongoose = require("mongoose");
 
 /**
- * A single unified schema for every message.
- *
- * room:
- *   - "public"                     -> the shared public chat room
- *   - "<userA>::<userB>" (sorted)  -> a private 1:1 conversation between two usernames
- *
- * type:
- *   - "message" -> a normal chat message
- *   - "system"  -> join/leave notices (public room only)
+ * Lightweight user record — created/updated whenever someone joins the chat.
+ * This is NOT a full auth system (no passwords), just a record of who has
+ * used the app and their email, so it persists across sessions.
  */
-const messageSchema = new mongoose.Schema(
+const userSchema = new mongoose.Schema(
   {
-    room: { type: String, required: true, index: true },
-    type: { type: String, enum: ["message", "system"], default: "message" },
-    from: { type: String, default: null }, // username of sender (null for system messages)
-    to: { type: String, default: null }, // username of recipient (only set for private messages)
-    text: { type: String, required: true, maxlength: 1000 },
-    timestamp: { type: Date, default: Date.now },
+    username: { type: String, required: true, trim: true, maxlength: 24 },
+    email: { type: String, trim: true, lowercase: true, default: null },
+    lastSeenAt: { type: Date, default: Date.now },
   },
   { versionKey: false }
 );
 
-messageSchema.index({ room: 1, timestamp: 1 });
+// One record per username (case-insensitive), updated on every join.
+userSchema.index({ username: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
 
-module.exports = mongoose.model("Message", messageSchema);
+module.exports = mongoose.model("User", userSchema);

@@ -364,6 +364,19 @@ button {
   background: var(--danger);
 }
 
+.chat-header-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.chat-header-email {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
 .chat-header-username {
   font-family: var(--font-mono);
   font-size: 12px;

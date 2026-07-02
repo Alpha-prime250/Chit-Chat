@@ -15,19 +15,29 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const { connectDB } = require("./db");
-const Message = require("./models/message");
+const Message = require("./models/Message");
+const User = require("./models/User");
 
 const app = express();
-app.use(cors());
+
+// Allow multiple comma-separated origins via env, e.g.
+// CLIENT_URL=http://localhost:5173,https://your-app.vercel.app
+const allowedOrigins = (process.env.CLIENT_URL || "*")
+  .split(",")
+  .map((o) => o.trim());
+
+const corsOptions = {
+  origin: allowedOrigins.includes("*") ? "*" : allowedOrigins,
+  methods: ["GET", "POST"],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: "*", // In production, restrict this to your frontend's origin
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions,
 });
 
 const PORT = process.env.PORT || 4000;
@@ -54,6 +64,22 @@ function makeUniqueUsername(requested) {
     candidate = `${base}${suffix}`;
   }
   return candidate;
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
+async function upsertUser(username, email) {
+  try {
+    await User.findOneAndUpdate(
+      { username },
+      { username, email: email || null, lastSeenAt: new Date() },
+      { upsert: true, collation: { locale: "en", strength: 2 } }
+    );
+  } catch (err) {
+    console.error("Failed to save user record:", err.message);
+  }
 }
 
 async function saveMessage(doc) {
@@ -107,16 +133,33 @@ app.get("/api/users", (req, res) => {
 io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
-  // A user joins the chat with a chosen (or auto-generated) username
-  socket.on("user:join", async (requestedUsername) => {
-    const username = makeUniqueUsername(requestedUsername);
+  // A user joins the chat with a username and email — both required
+  socket.on("user:join", async (payload) => {
+    const requestedUsername = typeof payload === "string" ? payload : payload?.username;
+    const requestedEmail = typeof payload === "string" ? null : payload?.email;
+
+    const trimmedUsername = String(requestedUsername || "").trim();
+    const trimmedEmail = String(requestedEmail || "").trim();
+
+    if (!trimmedUsername || !isValidEmail(trimmedEmail)) {
+      socket.emit("user:join_error", {
+        message: "A name and a valid email are required to join.",
+      });
+      return;
+    }
+
+    const email = trimmedEmail.toLowerCase();
+    const username = makeUniqueUsername(trimmedUsername);
     socketToUsername.set(socket.id, username);
     usernameToSocket.set(username.toLowerCase(), socket.id);
 
     socket.join(PUBLIC_ROOM);
 
     // Tell the client its final (possibly de-duplicated) username
-    socket.emit("user:joined", { username });
+    socket.emit("user:joined", { username, email });
+
+    // Persist/update this user's record (username + email) in MongoDB
+    await upsertUser(username, email);
 
     // Send public room history + current roster
     const history = await loadHistory(PUBLIC_ROOM);

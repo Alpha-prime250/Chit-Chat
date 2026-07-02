@@ -5,9 +5,11 @@ import Sidebar from "./components/Sidebar.jsx";
 import ChatWindow from "./components/ChatWindow.jsx";
 
 export default function App() {
-  const [requestedUsername, setRequestedUsername] = useState(null); // what the user typed
+  const [joinInfo, setJoinInfo] = useState(null); // { username, email } as typed on the login screen
   const [username, setUsername] = useState(null); // server-confirmed, de-duplicated username
+  const [email, setEmail] = useState(null); // server-confirmed email
   const [connected, setConnected] = useState(false);
+  const [joinError, setJoinError] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [activeChat, setActiveChat] = useState("public"); // "public" or a partner's username
 
@@ -18,19 +20,24 @@ export default function App() {
   const [typingByScope, setTypingByScope] = useState({}); // { public: [...usernames], [partner]: [...] }
 
   useEffect(() => {
-    if (!requestedUsername) return;
+    if (!joinInfo) return;
 
     socket.connect();
 
     function handleConnect() {
       setConnected(true);
-      socket.emit("user:join", requestedUsername);
+      socket.emit("user:join", joinInfo);
     }
     function handleDisconnect() {
       setConnected(false);
     }
-    function handleJoined({ username: finalUsername }) {
+    function handleJoined({ username: finalUsername, email: finalEmail }) {
       setUsername(finalUsername);
+      setEmail(finalEmail || null);
+    }
+    function handleJoinError({ message }) {
+      setJoinError(message || "Could not join the chat.");
+      setJoinInfo(null);
     }
     function handleHistory(history) {
       setPublicMessages(history);
@@ -81,6 +88,7 @@ export default function App() {
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("user:joined", handleJoined);
+    socket.on("user:join_error", handleJoinError);
     socket.on("chat:history", handleHistory);
     socket.on("chat:message", handlePublicMessage);
     socket.on("users:list", handleUsersList);
@@ -92,6 +100,7 @@ export default function App() {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("user:joined", handleJoined);
+      socket.off("user:join_error", handleJoinError);
       socket.off("chat:history", handleHistory);
       socket.off("chat:message", handlePublicMessage);
       socket.off("users:list", handleUsersList);
@@ -100,7 +109,7 @@ export default function App() {
       socket.off("typing:update", handleTyping);
       socket.disconnect();
     };
-  }, [requestedUsername]);
+  }, [joinInfo]);
 
   const handleSelectChat = (chat) => {
     setActiveChat(chat);
@@ -121,8 +130,8 @@ export default function App() {
   const handleTypingStart = () => socket.emit("typing:start", { to: activeChat });
   const handleTypingStop = () => socket.emit("typing:stop", { to: activeChat });
 
-  if (!requestedUsername) {
-    return <Login onJoin={setRequestedUsername} />;
+  if (!joinInfo) {
+    return <Login onJoin={setJoinInfo} serverError={joinError} />;
   }
 
   if (!username) {
@@ -148,6 +157,7 @@ export default function App() {
       />
       <ChatWindow
         username={username}
+        email={email}
         activeChat={activeChat}
         messages={activeMessages}
         onlineUsers={onlineUsers}
