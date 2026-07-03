@@ -14,7 +14,6 @@ export default function ChatWindow({
   onSend,
   onTypingStart,
   onTypingStop,
-  onLogout,
 }) {
   const bottomRef = useRef(null);
   const isPublic = activeChat === "public";
@@ -49,9 +48,6 @@ export default function ChatWindow({
         </div>
         <div className="chat-header-user">
           <span className="chat-header-username">{username}</span>
-          <button type="button" className="logout-button" onClick={onLogout}>
-            Logout
-          </button>
         </div>
       </header>
 
