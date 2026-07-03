@@ -15,7 +15,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const { connectDB } = require("./db");
-const Message = require("./models/message");
+const Message = require("./models/Message");
 const User = require("./models/User");
 
 const app = express();
