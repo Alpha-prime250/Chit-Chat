@@ -161,10 +161,9 @@ io.on("connection", (socket) => {
     // Persist/update this user's record (username + email) in MongoDB
     await upsertUser(username, email);
 
-    // Note: we intentionally do NOT send public room history here —
-    // new joiners only see messages sent from this point forward.
-    // (History is still saved to MongoDB via saveMessage below, in case
-    // you want to re-enable it later or expose it via GET /api/messages.)
+    // Send public room history + current roster
+    const history = await loadHistory(PUBLIC_ROOM);
+    socket.emit("chat:history", history);
     io.emit("users:list", Array.from(usernameToSocket.keys()));
 
     const joinMessage = await saveMessage({
