@@ -1,5 +1,5 @@
 
-# Wavelength — Real-Time Chat App
+# Chit Chat — Real-Time Chat App
 
 A full-stack real-time chat application with a public room, private 1:1 chats, and persistent history.
 
