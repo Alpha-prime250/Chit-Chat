@@ -4,8 +4,32 @@ import Login from "./components/Login.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import ChatWindow from "./components/ChatWindow.jsx";
 
+const STORAGE_KEY = "wavelength:join-info";
+const MESSAGES_STORAGE_KEY = "wavelength:public-messages";
+
+function loadSavedJoinInfo() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.username && parsed?.email) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function loadSavedPublicMessages() {
+  try {
+    const raw = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function App() {
-  const [joinInfo, setJoinInfo] = useState(null); // { username, email } as typed on the login screen
+  const [joinInfo, setJoinInfoState] = useState(loadSavedJoinInfo); // { username, email }
   const [username, setUsername] = useState(null); // server-confirmed, de-duplicated username
   const [email, setEmail] = useState(null); // server-confirmed email
   const [connected, setConnected] = useState(false);
@@ -13,11 +37,53 @@ export default function App() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [activeChat, setActiveChat] = useState("public"); // "public" or a partner's username
 
-  const [publicMessages, setPublicMessages] = useState([]);
+  const [publicMessages, setPublicMessages] = useState(loadSavedPublicMessages);
   const [dmMessages, setDmMessages] = useState({}); // { [partnerUsername]: Message[] }
   const [loadedDms, setLoadedDms] = useState(new Set()); // which DM histories we've already fetched
   const [unread, setUnread] = useState({ public: 0 }); // { public: n, [partner]: n }
   const [typingByScope, setTypingByScope] = useState({}); // { public: [...usernames], [partner]: [...] }
+
+  // Wraps setJoinInfo so every login also persists to localStorage
+  const setJoinInfo = (info) => {
+    setJoinInfoState(info);
+    try {
+      if (info) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(info));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // localStorage unavailable (e.g. private browsing) — session just won't persist
+    }
+  };
+
+  const handleLogout = () => {
+    setUsername(null);
+    setEmail(null);
+    setActiveChat("public");
+    setPublicMessages([]);
+    setDmMessages({});
+    setLoadedDms(new Set());
+    setUnread({ public: 0 });
+    setTypingByScope({});
+    setJoinInfo(null);
+    try {
+      localStorage.removeItem(MESSAGES_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Keeps the local public-message cache in sync so a page reload in the
+  // same browser can restore what this user already saw, without asking
+  // the server for full room history (new/different browsers still start empty).
+  useEffect(() => {
+    try {
+      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(publicMessages.slice(-200)));
+    } catch {
+      // ignore (e.g. private browsing / storage full)
+    }
+  }, [publicMessages]);
 
   useEffect(() => {
     if (!joinInfo) return;
@@ -37,7 +103,7 @@ export default function App() {
     }
     function handleJoinError({ message }) {
       setJoinError(message || "Could not join the chat.");
-      setJoinInfo(null);
+      setJoinInfo(null); // clears both state and localStorage
     }
     function handleHistory(history) {
       setPublicMessages(history);
@@ -167,6 +233,7 @@ export default function App() {
         onSend={handleSend}
         onTypingStart={handleTypingStart}
         onTypingStop={handleTypingStop}
+        onLogout={handleLogout}
       />
     </div>
   );
