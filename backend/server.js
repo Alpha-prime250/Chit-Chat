@@ -48,8 +48,15 @@ const HISTORY_LIMIT = 100;
 connectDB(MONGODB_URI);
 
 // ---- Presence (in-memory — who's online right now) ----
-const socketToUsername = new Map(); // socket.id -> username
+const socketToUsername = new Map(); // socket.id -> username (properly-cased)
 const usernameToSocket = new Map(); // lowercased username -> socket.id
+const clientIdToUsername = new Map(); // persistent browser clientId -> username (survives refresh)
+
+function getOnlineUsernames() {
+  // Always derive the public list from socketToUsername so the casing
+  // shown to users matches exactly what's stored on messages (from/to).
+  return Array.from(socketToUsername.values());
+}
 
 function dmRoomId(userA, userB) {
   return [userA, userB].sort((a, b) => a.localeCompare(b)).join("::");
@@ -126,7 +133,7 @@ app.get("/api/messages/dm", async (req, res) => {
 });
 
 app.get("/api/users", (req, res) => {
-  res.json(Array.from(usernameToSocket.keys()));
+  res.json(getOnlineUsernames());
 });
 
 // ---- Socket.io real-time logic ----
@@ -137,6 +144,7 @@ io.on("connection", (socket) => {
   socket.on("user:join", async (payload) => {
     const requestedUsername = typeof payload === "string" ? payload : payload?.username;
     const requestedEmail = typeof payload === "string" ? null : payload?.email;
+    const clientId = typeof payload === "string" ? null : payload?.clientId || null;
 
     const trimmedUsername = String(requestedUsername || "").trim();
     const trimmedEmail = String(requestedEmail || "").trim();
@@ -149,7 +157,30 @@ io.on("connection", (socket) => {
     }
 
     const email = trimmedEmail.toLowerCase();
-    const username = makeUniqueUsername(trimmedUsername);
+
+    // If this exact browser (clientId) already used this exact username
+    // before (e.g. a page refresh), reclaim that same username instead of
+    // appending a suffix — even if the old socket hasn't fully
+    // disconnected on the server yet.
+    let username = null;
+    if (clientId && clientIdToUsername.has(clientId)) {
+      const priorUsername = clientIdToUsername.get(clientId);
+      if (priorUsername.toLowerCase() === trimmedUsername.toLowerCase()) {
+        username = priorUsername;
+        const staleSocketId = usernameToSocket.get(username.toLowerCase());
+        if (staleSocketId && staleSocketId !== socket.id) {
+          // Prevent the stale socket's eventual "disconnect" handler from
+          // deleting the new (current) mapping we're about to set below.
+          socketToUsername.delete(staleSocketId);
+        }
+      }
+    }
+
+    if (!username) {
+      username = makeUniqueUsername(trimmedUsername);
+      if (clientId) clientIdToUsername.set(clientId, username);
+    }
+
     socketToUsername.set(socket.id, username);
     usernameToSocket.set(username.toLowerCase(), socket.id);
 
@@ -161,10 +192,11 @@ io.on("connection", (socket) => {
     // Persist/update this user's record (username + email) in MongoDB
     await upsertUser(username, email);
 
-    // Send public room history + current roster
-    const history = await loadHistory(PUBLIC_ROOM);
-    socket.emit("chat:history", history);
-    io.emit("users:list", Array.from(usernameToSocket.keys()));
+    // Note: we intentionally do NOT send public room history here —
+    // new joiners only see messages sent from this point forward.
+    // (History is still saved to MongoDB via saveMessage below, in case
+    // you want to re-enable it later or expose it via GET /api/messages.)
+    io.emit("users:list", getOnlineUsernames());
 
     const joinMessage = await saveMessage({
       room: PUBLIC_ROOM,
@@ -267,7 +299,7 @@ io.on("connection", (socket) => {
         timestamp: new Date(),
       });
       socket.to(PUBLIC_ROOM).emit("chat:message", leaveMessage);
-      io.emit("users:list", Array.from(usernameToSocket.keys()));
+      io.emit("users:list", getOnlineUsernames());
     }
 
     console.log(`Socket disconnected: ${socket.id}`);
