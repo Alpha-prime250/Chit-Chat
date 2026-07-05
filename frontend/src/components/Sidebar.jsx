@@ -1,3 +1,5 @@
+import Avatar from "./Avatar.jsx";
+
 export default function Sidebar({ username, onlineUsers, activeChat, unread, onSelect }) {
   const others = onlineUsers.filter((u) => u.toLowerCase() !== username.toLowerCase());
 
@@ -26,7 +28,7 @@ export default function Sidebar({ username, onlineUsers, activeChat, unread, onS
           className={`sidebar-item ${activeChat === user ? "sidebar-item--active" : ""}`}
           onClick={() => onSelect(user)}
         >
-          <span className="sidebar-avatar">{user.charAt(0).toUpperCase()}</span>
+          <Avatar name={user} size="md" />
           <span className="sidebar-item-text">
             <span className="sidebar-item-name">{user}</span>
             <span className="sidebar-item-sub">

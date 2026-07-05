@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Message from "./Message.jsx";
 import MessageInput from "./MessageInput.jsx";
+import Avatar from "./Avatar.jsx";
 
 export default function ChatWindow({
   username,
@@ -38,16 +39,20 @@ export default function ChatWindow({
               </div>
             </>
           ) : (
-            <>
-              <h1 className="chat-title">{activeChat}</h1>
-              <div className="chat-status">
-                <span className={`status-dot ${isPartnerOnline ? "status-dot--online" : "status-dot--offline"}`} />
-                <span>{isPartnerOnline ? "Online" : "Offline"}</span>
+            <div className="chat-header-partner">
+              <Avatar name={activeChat} size="md" />
+              <div>
+                <h1 className="chat-title">{activeChat}</h1>
+                <div className="chat-status">
+                  <span className={`status-dot ${isPartnerOnline ? "status-dot--online" : "status-dot--offline"}`} />
+                  <span>{isPartnerOnline ? "Online" : "Offline"}</span>
+                </div>
               </div>
-            </>
+            </div>
           )}
         </div>
         <div className="chat-header-user">
+          <Avatar name={username} size="md" />
           <span className="chat-header-username">{username}</span>
           <button type="button" className="logout-button" onClick={onLogout}>
             Logout

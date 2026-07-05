@@ -1,3 +1,5 @@
+import Avatar from "./Avatar.jsx";
+
 function formatTime(isoString) {
   const date = new Date(isoString);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -14,6 +16,7 @@ export default function Message({ message, isOwn }) {
 
   return (
     <div className={`message-row ${isOwn ? "message-row--own" : ""}`}>
+      {!isOwn && <Avatar name={message.from} size="sm" />}
       <div className={`message-bubble ${isOwn ? "message-bubble--own" : ""}`}>
         {!isOwn && <p className="message-username">{message.from}</p>}
         <p className="message-text">{message.text}</p>
